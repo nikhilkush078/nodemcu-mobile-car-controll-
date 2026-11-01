@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14181c">
+<title>NodeMCU Car Controller</title>
+<style>
+  :root {
+    --bg: #14181c; --panel: #1e252b; --key: #2b353d; --key-edge: #3a4752;
+    --text: #e8edf0; --muted: #8fa0ab; --go: #3fb6a8; --stop: #d94b3d;
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    touch-action: none; overflow: hidden;
+  }
+  .app { height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 14px; max-width: 900px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .addr { display: flex; align-items: center; gap: 8px; background: var(--panel); border-radius: 10px; padding: 6px 10px; }
+  .addr label { color: var(--muted); font-size: 14px; }
+  .addr input { background: transparent; border: 0; color: var(--text); font: inherit; width: 9.5em; outline: none; touch-action: manipulation; -webkit-user-select: text; user-select: text; }
+  .addr input:focus-visible { outline: 2px solid var(--go); outline-offset: 2px; border-radius: 4px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status.ok .dot { background: var(--go); }
+  .status.bad .dot { background: var(--stop); }
+  main { flex: 1; min-height: 0; display: flex; gap: 18px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(78vw, 46vh, 360px); aspect-ratio: 1; }
+  @media (orientation: landscape) { .pad { width: min(60vh, 340px); } main { flex-wrap: nowrap; } }
+  .key {
+    appearance: none; -webkit-appearance: none; border: 1px solid var(--key-edge); background: var(--key); color: var(--text);
+    border-radius: 18px; font: inherit; font-size: clamp(26px, 8vw, 40px); display: grid; place-items: center; padding: 0;
+    touch-action: none; cursor: pointer;
+    transition: transform .06s ease, background-color .06s ease;
+  }
+  .key:focus-visible { outline: 2px solid var(--go); outline-offset: 2px; }
+  .key.down { background: var(--go); border-color: var(--go); color: #08211e; transform: scale(.95); }
+  .key.stop { background: #3a2321; border-color: #6b3530; color: #ffb4aa; font-size: clamp(15px, 4vw, 20px); font-weight: 700; }
+  .key.stop.down { background: var(--stop); border-color: var(--stop); color: #fff; }
+  .side { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 360px); }
+  .speed { background: var(--panel); border-radius: 14px; padding: 14px 16px; }
+  .speed .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .speed output { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .speed .lbl { color: var(--muted); font-size: 14px; }
+  input[type=range] { width: 100%; height: 36px; accent-color: var(--go); touch-action: pan-y; margin: 0; }
+  .last { color: var(--muted); font-size: 14px; text-align: center; min-height: 1.4em; }
+  .last b { color: var(--text); font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { .key { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="addr">
+      <label for="ip">Car address</label>
+      <input id="ip" type="text" inputmode="decimal" value="192.168.4.1" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite"><span class="dot"></span><span id="statusText">Checking connection…</span></div>
+  </header>
+
+  <main>
+    <div class="pad" id="pad">
+      <button class="key" data-cmd="G" aria-label="Forward left">↖</button>
+      <button class="key" data-cmd="F" aria-label="Forward">↑</button>
+      <button class="key" data-cmd="I" aria-label="Forward right">↗</button>
+      <button class="key" data-cmd="L" aria-label="Left">←</button>
+      <button class="key stop" data-cmd="S" aria-label="Stop">STOP</button>
+      <button class="key" data-cmd="R" aria-label="Right">→</button>
+      <button class="key" data-cmd="H" aria-label="Backward left">↙</button>
+      <button class="key" data-cmd="B" aria-label="Backward">↓</button>
+      <button class="key" data-cmd="J" aria-label="Backward right">↘</button>
+    </div>
+
+    <div class="side">
+      <div class="speed">
+        <div class="row"><span class="lbl">Speed</span><output id="speedOut" for="speed">–</output></div>
+        <input id="speed" type="range" min="0" max="9" step="1" value="5" aria-label="Speed">
+      </div>
+      <div class="last" id="last">Hold a key to drive. Release to stop.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var ipEl = document.getElementById('ip');
+  var statusEl = document.getElementById('status');
+  var statusText = document.getElementById('statusText');
+  var lastEl = document.getElementById('last');
+  var speedEl = document.getElementById('speed');
+  var speedOut = document.getElementById('speedOut');
+
+  try { var saved = localStorage.getItem('carIp'); if (saved) ipEl.value = saved; } catch (e) {}
+
+  function base() { return 'http://' + ipEl.value.trim().replace(/^https?:\/\//, '').replace(/\/+$/, ''); }
+
+  // Sends GET /?State=<cmd>. An <img> request avoids CORS limits; the car's reply is ignored.
+  function send(cmd) {
+    var img = new Image();
+    img.src = base() + '/?State=' + encodeURIComponent(cmd) + '&_=' + Date.now();
+    lastEl.innerHTML = 'Sent <b>State=' + cmd + '</b>';
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  function setStatus(kind, text) {
+    statusEl.className = 'status ' + kind;
+    statusText.textContent = text;
+  }
+
+  function check() {
+    setStatus('', 'Checking connection…');
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 3000);
+    fetch(base() + '/?_=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(function () { clearTimeout(timer); setStatus('ok', 'Car connected'); })
+      .catch(function () { clearTimeout(timer); setStatus('bad', 'Car not reachable. Join the car’s WiFi network.'); });
+  }
+
+  ipEl.addEventListener('change', function () {
+    try { localStorage.setItem('carIp', ipEl.value.trim()); } catch (e) {}
+    check();
+  });
+  statusEl.addEventListener('click', check);
+
+  // Press = send direction, release = send stop (same behaviour as the old app).
+  var active = {};
+  document.querySelectorAll('.key').forEach(function (key) {
+    var cmd = key.dataset.cmd;
+    function down(e) {
+      e.preventDefault();
+      if (active[e.pointerId]) return;
+      active[e.pointerId] = key;
+      try { key.setPointerCapture(e.pointerId); } catch (x) {}
+      key.classList.add('down');
+      send(cmd);
+    }
+    function up(e) {
+      if (!active[e.pointerId]) return;
+      delete active[e.pointerId];
+      key.classList.remove('down');
+      if (cmd !== 'S') send('S');
+    }
+    key.addEventListener('pointerdown', down);
+    key.addEventListener('pointerup', up);
+    key.addEventListener('pointercancel', up);
+    key.addEventListener('lostpointercapture', up);
+    key.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    key.addEventListener('keydown', function (e) { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { key.classList.add('down'); send(cmd); } });
+    key.addEventListener('keyup', function (e) { if (e.key === ' ' || e.key === 'Enter') { key.classList.remove('down'); if (cmd !== 'S') send('S'); } });
+  });
+
+  // Speed slider sends a single digit 0–9 as State=<digit>.
+  var speedTimer;
+  speedEl.addEventListener('input', function () {
+    speedOut.textContent = speedEl.value;
+    clearTimeout(speedTimer);
+    speedTimer = setTimeout(function () { send(speedEl.value); }, 120);
+  });
+
+  window.addEventListener('blur', function () { send('S'); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) send('S'); });
+
+  check();
+})();
+</script>
+</body>
+</html>
