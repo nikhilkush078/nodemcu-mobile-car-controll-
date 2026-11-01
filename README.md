@@ -1,3 +1,35 @@
+> [!IMPORTANT]
+> ## 🚀 Updated version available: use the new code!
+> The bugs in the old code are fixed, and the bot is now controlled with an **HTML file** instead of an APK.
+> **Use these two files:**
+> - [`nodemcu_car_updated_code.ino`](./nodemcu_car_updated_code.ino) (upload to the NodeMCU)
+> - [`NodeMCU_Car_Controller_html_file.html`](./NodeMCU_Car_Controller_html_file.html) (control the car)
+>
+> ⚠️ `application.apk`, `base.apk` and `nodemcu.ino` are the **old version**. They are kept for reference only.
+
+### How to use the new version
+
+1. **Upload the code:** Open `nodemcu_car_updated_code.ino` in Arduino IDE and upload it to your NodeMCU.
+2. **Power the car:** The NodeMCU creates its own Wi-Fi hotspot.
+3. **Connect your phone:** Go to your phone's Wi-Fi settings and connect to the car's hotspot.
+4. **Open the controller:** Open `NodeMCU_Car_Controller_html_file.html` on your phone.
+   - 🌐 Use any browser **other than Chrome** (for example Firefox, Edge, Brave or Opera). Chrome sometimes does not work with this file.
+5. **Drive the car!**
+
+### What changed?
+
+| | Old version | New version |
+|---|---|---|
+| Control method | Android APK | HTML file (no install needed) |
+| Arduino code | `nodemcu.ino` | `nodemcu_car_updated_code.ino` (bugs fixed) |
+| Status | Archived | **Recommended** |
+
+For a detailed comparison, see `ESP8266_Robot_Car_Code_Changes_Comparison...` in this repo.
+
+---
+
+
+
 # NodeMCU ESP8266 Wi-Fi Controlled Robot Car
 
 A Wi-Fi-controlled robotic car built using the **NodeMCU ESP8266, L298N motor driver, and DC motors**. The car can be controlled wirelessly using an Android application (`application.apk`) or through a compatible web browser.
